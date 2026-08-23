@@ -6,6 +6,7 @@ import projectRoutes from './routes/project.routes';
 import taskRoutes from './routes/task.routes';
 import aiRoutes from './routes/ai.routes';
 import reportRoutes from './routes/report.routes';
+import docsRoutes from './routes/docs.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 export const createApp = (): Express => {
@@ -18,6 +19,7 @@ export const createApp = (): Express => {
 
   // Routes
   app.use(healthRoutes);
+  app.use('/docs', docsRoutes);
   app.use('/auth', authRoutes);
   app.use('/projects', projectRoutes);
   app.use('/tasks', taskRoutes);
