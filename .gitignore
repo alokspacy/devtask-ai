@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+output/reports/*.pdf
+!output/reports/.gitkeep
+coverage/
+.DS_Store
+*.log
