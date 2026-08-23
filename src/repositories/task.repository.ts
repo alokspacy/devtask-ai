@@ -110,11 +110,10 @@ export class TaskRepository implements ITaskRepository {
     fields.push(`updated_at = NOW()`);
 
     const query = `
-      UPDATE tasks t
+      UPDATE tasks
       SET ${fields.join(', ')}
-      FROM projects p
-      WHERE t.id = $1 AND t.project_id = p.id AND p.user_id = $2
-      RETURNING t.*;
+      WHERE id = $1 AND project_id IN (SELECT id FROM projects WHERE user_id = $2)
+      RETURNING *;
     `;
     const result = await db.query<Task>(query, params);
     return result.rows[0] || null;
@@ -122,10 +121,9 @@ export class TaskRepository implements ITaskRepository {
 
   async delete(id: string, userId: string): Promise<boolean> {
     const query = `
-      DELETE FROM tasks t
-      USING projects p
-      WHERE t.id = $1 AND t.project_id = p.id AND p.user_id = $2
-      RETURNING t.id;
+      DELETE FROM tasks
+      WHERE id = $1 AND project_id IN (SELECT id FROM projects WHERE user_id = $2)
+      RETURNING id;
     `;
     const result = await db.query(query, [id, userId]);
     return (result.rowCount ?? 0) > 0;
