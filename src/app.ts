@@ -4,6 +4,7 @@ import healthRoutes from './routes/health.routes';
 import authRoutes from './routes/auth.routes';
 import projectRoutes from './routes/project.routes';
 import taskRoutes from './routes/task.routes';
+import aiRoutes from './routes/ai.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 export const createApp = (): Express => {
@@ -19,6 +20,7 @@ export const createApp = (): Express => {
   app.use('/auth', authRoutes);
   app.use('/projects', projectRoutes);
   app.use('/tasks', taskRoutes);
+  app.use('/ai', aiRoutes);
 
   // Global Error Handler
   app.use(errorHandler);
