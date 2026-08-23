@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { projectService } from '../services/project.service';
 import { taskService } from '../services/task.service';
+import { reportService } from '../services/report.service';
 import { validate } from '../middleware/validate';
 import { requireAuth } from '../middleware/auth';
 
@@ -122,6 +123,33 @@ router.get('/:projectId/tasks', async (req: Request, res: Response, next: NextFu
     res.status(200).json({
       data: tasks,
       count: tasks.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Background PDF report generation endpoint (202 Accepted)
+router.post('/:id/reports', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const reportJob = await reportService.requestProjectReport(req.params.id, userId);
+    res.status(202).json({
+      message: 'Project report generation job accepted and queued for processing',
+      data: reportJob,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:id/reports', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const reports = await reportService.getReportsByProjectId(req.params.id, userId);
+    res.status(200).json({
+      data: reports,
+      count: reports.length,
     });
   } catch (error) {
     next(error);

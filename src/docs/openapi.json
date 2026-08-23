@@ -1,0 +1,405 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "DevTask AI — API Documentation",
+    "version": "1.0.0",
+    "description": "RESTful API documentation for DevTask AI: an AI-Powered Developer Task & Project Assistant. Features full CRUD for projects and tasks, Supabase authentication, Gemini LLM technical implementation planner, and asynchronous PDF project reporting."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Supabase JWT Access Token"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "details": { "type": "object" }
+        },
+        "required": ["error"]
+      },
+      "AuthCredentials": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "example": "engineer@devtask.ai" },
+          "password": { "type": "string", "minLength": 6, "example": "Secr3tP@ssword" }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "user_id": { "type": "string" },
+          "name": { "type": "string", "example": "DevTask Backend Core" },
+          "description": { "type": "string", "example": "Core backend services and API infrastructure" },
+          "status": { "type": "string", "enum": ["active", "archived", "completed"], "example": "active" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "task_count": { "type": "integer", "example": 5 },
+          "completed_task_count": { "type": "integer", "example": 3 },
+          "pending_task_count": { "type": "integer", "example": 2 }
+        }
+      },
+      "CreateProjectInput": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255, "example": "Express Auth Integration" },
+          "description": { "type": "string", "example": "JWT Bearer authentication with Supabase and role checks" }
+        }
+      },
+      "UpdateProjectInput": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "description": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "archived", "completed"] }
+        }
+      },
+      "Task": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "project_id": { "type": "string", "format": "uuid" },
+          "title": { "type": "string", "example": "Implement JWT Auth Middleware" },
+          "description": { "type": "string", "example": "Validate Authorization Bearer token header against Supabase auth" },
+          "status": { "type": "string", "enum": ["pending", "in_progress", "completed"], "example": "in_progress" },
+          "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"], "example": "high" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateTaskInput": {
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 255, "example": "Write automated integration tests" },
+          "description": { "type": "string", "example": "Test all protected routes and status codes using Supertest" },
+          "status": { "type": "string", "enum": ["pending", "in_progress", "completed"], "default": "pending" },
+          "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"], "default": "medium" }
+        }
+      },
+      "UpdateTaskInput": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "description": { "type": "string" },
+          "status": { "type": "string", "enum": ["pending", "in_progress", "completed"] },
+          "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] }
+        }
+      },
+      "AiPlanRequest": {
+        "type": "object",
+        "required": ["task"],
+        "properties": {
+          "task": { "type": "string", "example": "Build authentication for my Express API" },
+          "project_id": { "type": "string", "format": "uuid", "nullable": true, "example": "3fa85f64-5717-4562-b3fc-2c963f66afa6" }
+        }
+      },
+      "AiPlan": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "project_id": { "type": "string", "format": "uuid", "nullable": true },
+          "user_id": { "type": "string" },
+          "task_input": { "type": "string" },
+          "goal": { "type": "string" },
+          "prerequisites": { "type": "array", "items": { "type": "string" } },
+          "steps": { "type": "array", "items": { "type": "string" } },
+          "files_or_areas_to_modify": { "type": "array", "items": { "type": "string" } },
+          "testing_checklist": { "type": "array", "items": { "type": "string" } },
+          "risks": { "type": "array", "items": { "type": "string" } },
+          "model_name": { "type": "string" },
+          "prompt_tokens": { "type": "integer" },
+          "output_tokens": { "type": "integer" },
+          "total_tokens": { "type": "integer" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ReportJob": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "project_id": { "type": "string", "format": "uuid" },
+          "user_id": { "type": "string" },
+          "status": { "type": "string", "enum": ["queued", "processing", "completed", "failed"], "example": "completed" },
+          "file_path": { "type": "string", "nullable": true },
+          "file_name": { "type": "string", "nullable": true },
+          "error_message": { "type": "string", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "completed_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Returns status of the server and database connection",
+        "responses": {
+          "200": { "description": "Server and database are healthy" },
+          "503": { "description": "Database disconnected or server degraded" }
+        }
+      }
+    },
+    "/auth/signup": {
+      "post": {
+        "summary": "Register a new user",
+        "description": "Registers a new user account with Supabase Auth",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthCredentials" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created successfully" },
+          "400": { "description": "Validation error or registration failure", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Authenticate user",
+        "description": "Authenticates user with email and password via Supabase Auth",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AuthCredentials" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login successful, returns JWT access token" },
+          "401": { "description": "Invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Log out user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Logout successful" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "summary": "List all projects",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "List of user projects with task metrics" },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "post": {
+        "summary": "Create a project",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateProjectInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Project created successfully" },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/projects/{id}": {
+      "get": {
+        "summary": "Get project by ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Project details with task metrics" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Project not found" }
+        }
+      },
+      "put": {
+        "summary": "Update project",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateProjectInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Project updated successfully" },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Project not found" }
+        }
+      },
+      "delete": {
+        "summary": "Delete project",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "204": { "description": "Project deleted successfully" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Project not found" }
+        }
+      }
+    },
+    "/projects/{projectId}/tasks": {
+      "get": {
+        "summary": "List tasks in project",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "List of tasks" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Project not found" }
+        }
+      },
+      "post": {
+        "summary": "Create task in project",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "projectId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTaskInput" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Task created successfully" },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Project not found" }
+        }
+      }
+    },
+    "/tasks/{id}": {
+      "get": {
+        "summary": "Get task by ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Task details" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Task not found" }
+        }
+      },
+      "put": {
+        "summary": "Update task",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateTaskInput" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Task updated successfully" },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Task not found" }
+        }
+      },
+      "delete": {
+        "summary": "Delete task",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "204": { "description": "Task deleted successfully" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Task not found" }
+        }
+      }
+    },
+    "/ai/plan": {
+      "post": {
+        "summary": "Generate AI Implementation Plan",
+        "description": "Uses Google Gemini LLM with strict Zod schema validation to produce a verified developer implementation plan",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/AiPlanRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "AI Implementation Plan generated and persisted successfully" },
+          "400": { "description": "Invalid input format" },
+          "401": { "description": "Unauthorized" },
+          "502": { "description": "External LLM error or schema validation failure" }
+        }
+      }
+    },
+    "/projects/{id}/reports": {
+      "post": {
+        "summary": "Request asynchronous project PDF report",
+        "description": "Enqueues background job to generate formatted multi-page PDF summary and returns 202 Accepted immediately",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "202": { "description": "Report job queued successfully" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Project not found" }
+        }
+      }
+    },
+    "/reports/{id}": {
+      "get": {
+        "summary": "Get report job status",
+        "description": "Poll status of background report job (queued, processing, completed, failed)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Report job details and status" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Report job not found" }
+        }
+      }
+    },
+    "/reports/{id}/download": {
+      "get": {
+        "summary": "Download generated PDF report",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Binary PDF file download", "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } } },
+          "400": { "description": "Report not ready or still processing" },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Report file not found" }
+        }
+      }
+    }
+  }
+}
