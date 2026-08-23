@@ -1,11 +1,8 @@
 import { Pool, QueryResult, QueryResultRow } from 'pg';
-import fs from 'fs';
-import path from 'path';
 import crypto from 'crypto';
 import { config } from '../config';
 
 let pool: Pool;
-let memAdapter: any = null;
 
 if (process.env.NODE_ENV === 'test') {
   try {
@@ -17,6 +14,7 @@ if (process.env.NODE_ENV === 'test') {
     memDb.public.registerFunction({
       name: 'gen_random_uuid',
       returns: DataType.text,
+      impure: true,
       implementation: () => crypto.randomUUID(),
     });
 
@@ -24,13 +22,13 @@ if (process.env.NODE_ENV === 'test') {
       schema.registerFunction({
         name: 'gen_random_uuid',
         returns: DataType.text,
+        impure: true,
         implementation: () => crypto.randomUUID(),
       });
     });
 
     const pg = memDb.adapters.createPg();
     pool = new pg.Pool();
-    memAdapter = memDb;
   } catch (e) {
     pool = new Pool({
       connectionString: config.databaseUrl,

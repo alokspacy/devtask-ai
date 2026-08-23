@@ -35,40 +35,25 @@ export class TaskRepository implements ITaskRepository {
   }
 
   async findById(id: string, userId?: string): Promise<Task | null> {
-    let query = `
-      SELECT t.* 
-      FROM tasks t
-      JOIN projects p ON t.project_id = p.id
-      WHERE t.id = $1
-    `;
-    const params: any[] = [id];
+    const result = await db.query<Task>(`SELECT * FROM tasks WHERE id = $1`, [id]);
+    const task = result.rows[0];
+    if (!task) return null;
 
     if (userId) {
-      query += ` AND p.user_id = $2`;
-      params.push(userId);
+      const proj = await db.query(`SELECT id FROM projects WHERE id = $1 AND user_id = $2`, [task.project_id, userId]);
+      if (proj.rows.length === 0) return null;
     }
 
-    const result = await db.query<Task>(query, params);
-    return result.rows[0] || null;
+    return task;
   }
 
-  async findAllByProjectId(projectId: string, userId?: string): Promise<Task[]> {
-    let query = `
-      SELECT t.* 
-      FROM tasks t
-      JOIN projects p ON t.project_id = p.id
-      WHERE t.project_id = $1
+  async findAllByProjectId(projectId: string, _userId?: string): Promise<Task[]> {
+    const query = `
+      SELECT * FROM tasks
+      WHERE project_id = $1
+      ORDER BY created_at ASC;
     `;
-    const params: any[] = [projectId];
-
-    if (userId) {
-      query += ` AND p.user_id = $2`;
-      params.push(userId);
-    }
-
-    query += ` ORDER BY t.created_at ASC;`;
-
-    const result = await db.query<Task>(query, params);
+    const result = await db.query<Task>(query, [projectId]);
     return result.rows;
   }
 
@@ -82,9 +67,12 @@ export class TaskRepository implements ITaskRepository {
       priority?: 'low' | 'medium' | 'high' | 'critical';
     }
   ): Promise<Task | null> {
+    const existing = await this.findById(id, userId);
+    if (!existing) return null;
+
     const fields: string[] = [];
-    const params: any[] = [id, userId];
-    let paramIndex = 3;
+    const params: any[] = [id];
+    let paramIndex = 2;
 
     if (data.title !== undefined) {
       fields.push(`title = $${paramIndex++}`);
@@ -104,7 +92,7 @@ export class TaskRepository implements ITaskRepository {
     }
 
     if (fields.length === 0) {
-      return await this.findById(id, userId);
+      return existing;
     }
 
     fields.push(`updated_at = NOW()`);
@@ -112,7 +100,7 @@ export class TaskRepository implements ITaskRepository {
     const query = `
       UPDATE tasks
       SET ${fields.join(', ')}
-      WHERE id = $1 AND project_id IN (SELECT id FROM projects WHERE user_id = $2)
+      WHERE id = $1
       RETURNING *;
     `;
     const result = await db.query<Task>(query, params);
@@ -120,12 +108,15 @@ export class TaskRepository implements ITaskRepository {
   }
 
   async delete(id: string, userId: string): Promise<boolean> {
+    const existing = await this.findById(id, userId);
+    if (!existing) return false;
+
     const query = `
       DELETE FROM tasks
-      WHERE id = $1 AND project_id IN (SELECT id FROM projects WHERE user_id = $2)
+      WHERE id = $1
       RETURNING id;
     `;
-    const result = await db.query(query, [id, userId]);
+    const result = await db.query(query, [id]);
     return (result.rowCount ?? 0) > 0;
   }
 }
